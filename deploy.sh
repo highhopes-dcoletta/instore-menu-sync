@@ -4,20 +4,15 @@
 
 set -e
 
-HOST="highhopes@104.236.29.111"
+HOST="root@104.236.29.111"
 REMOTE_DIR="/home/highhopes/sync"
 REPO="https://github.com/highhopes-dcoletta/instore-menu-sync.git"
 CRON="*/5 9-21 * * * cd $REMOTE_DIR && venv/bin/python sync.py --target main >> $REMOTE_DIR/sync.log 2>&1"
-
-echo "==> Copying .env to server..."
-scp .env "$HOST:$REMOTE_DIR/.env" 2>/dev/null || {
-    # Directory might not exist yet — create it first then retry
-    ssh "$HOST" "mkdir -p $REMOTE_DIR"
-    scp .env "$HOST:$REMOTE_DIR/.env"
-}
+# Use macOS keychain agent (bypasses 1Password IdentityAgent override in ~/.ssh/config)
+SSHOPTS="-o IdentityAgent=SSH_AUTH_SOCK"
 
 echo "==> Setting up server..."
-ssh "$HOST" bash << EOF
+ssh $SSHOPTS "$HOST" bash << EOF
 set -e
 
 # Clone or update repo
@@ -32,6 +27,12 @@ else
 fi
 
 cd $REMOTE_DIR
+
+# Set timezone
+timedatectl set-timezone America/New_York
+
+# Ensure python3-venv is available
+apt-get install -y python3-venv > /dev/null 2>&1 || true
 
 # Set up Python venv
 if [ ! -d "venv" ]; then
@@ -57,6 +58,9 @@ fi
 echo "  Done."
 EOF
 
+echo "==> Copying .env to server..."
+scp $SSHOPTS .env "$HOST:$REMOTE_DIR/.env"
+
 echo ""
 echo "==> Deploy complete. Running a test sync..."
-ssh "$HOST" "cd $REMOTE_DIR && venv/bin/python sync.py --target main 2>&1 | tail -5"
+ssh $SSHOPTS "$HOST" "cd $REMOTE_DIR && venv/bin/python sync.py --target main 2>&1 | tail -5"
