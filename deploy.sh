@@ -43,9 +43,12 @@ fi
 echo "  Installing dependencies..."
 venv/bin/pip install --quiet -r requirements.txt
 
-# Set up cron job (idempotent)
+# Set up cron job (idempotent) — write to temp file to avoid stdin conflict with heredoc
 echo "  Setting up cron job..."
-( crontab -l 2>/dev/null | grep -v "sync.py" ; echo "$CRON" ) | crontab -
+TMPFILE=\$(mktemp)
+( crontab -l 2>/dev/null | grep -v "sync.py" ; echo "$CRON" ) > "\$TMPFILE"
+crontab "\$TMPFILE"
+rm "\$TMPFILE"
 
 echo "  Cron jobs:"
 crontab -l
